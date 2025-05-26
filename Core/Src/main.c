@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <stdlib.h>
 #include "math.h"
 /* USER CODE END Includes */
 
@@ -64,7 +65,7 @@ PDM_Filter_Config_t pdm_filter_config;
 
 int amplitude = 0;
 
-
+volatile int pdmReady = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -308,26 +309,9 @@ int main(void)
   MX_PDM2PCM_Init();
   /* USER CODE BEGIN 2 */
 
-  Set_LED(0, 255, 0, 0);
-  Set_LED(1, 0, 255, 0);
-  Set_LED(2, 0, 0, 255);
-  Set_LED(3, 46, 89, 128);
-  Set_LED(4, 156, 233, 100);
-  Set_LED(5, 102, 0, 235);
-  Set_LED(6, 47, 38, 77);
-  Set_LED(7, 255, 200, 0);
-
-  Set_Brightness(10);
-
-  HAL_Delay(100);
 
 
   HAL_I2S_Receive_DMA(&hi2s2,(uint8_t*) pdmBuffer, PDM_BUFFER_SIZE);
-  //WS2812_Send();
-  printf("AMP: %d\n", amplitude);
-  Reset_LED();
-  WS2812_Send();
-
 
 
   /* USER CODE END 2 */
@@ -337,7 +321,42 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+	  if(pdmReady == 1)
+	  {
+		  pdmReady = 0;
+	      // Convert PDM to PCM
+		  MX_PDM2PCM_Process(&pdmBuffer[PDM_BUFFER_SIZE / 2], pcmBuffer);
 
+	      // Get amplitude
+	      amplitude = process_amplitude((int16_t*)pcmBuffer, PCM_BUFFER_SIZE);
+	      printf("AMP: %d\n", amplitude);
+
+
+	      // Map amplitude to green
+	      // Map amplitude to 0–8 LEDs
+	      int level = amplitude / 100;  // Do nhay
+	      if (level > 8) level = 8;
+
+	      // Update LED colors
+	      for (int i = 0; i < 8; i++)
+	      {
+	          if (i < level)
+	          {
+	              uint8_t r = rand() % 256;
+	              uint8_t g = rand() % 256;
+	              uint8_t b = rand() % 256;
+	              Set_LED(i, r, g, b);
+	          }
+	          else
+	              Set_LED(i, 0, 0, 0);   // Off
+	      }
+
+	      Set_Brightness(1);
+	      WS2812_Send();
+	      // Restart I2S DMA
+	      HAL_I2S_Receive_DMA(&hi2s2, pdmBuffer, PDM_BUFFER_SIZE);
+
+	  }
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -706,10 +725,11 @@ void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s)
 {
     if (hi2s->Instance == SPI2)
     {
-    	MX_PDM2PCM_Process(&pdmBuffer[PDM_BUFFER_SIZE / 2], pcmBuffer);
-    	amplitude = process_amplitude(pcmBuffer, PCM_BUFFER_SIZE);
+    	//MX_PDM2PCM_Process(&pdmBuffer[PDM_BUFFER_SIZE / 2], pcmBuffer);
+    	//amplitude = process_amplitude(pcmBuffer, PCM_BUFFER_SIZE);
 
-    	printf("AMP: %d\n", amplitude);
+    	//printf("AMP: %d\n", amplitude);
+    	pdmReady = 1;
 
     }
 }
