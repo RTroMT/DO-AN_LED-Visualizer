@@ -66,6 +66,8 @@ PDM_Filter_Config_t pdm_filter_config;
 int amplitude = 0;
 
 volatile int pdmReady = 0;
+
+uint8_t ledR[8][8], ledG[8][8], ledB[8][8]; //LED frame buffer
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -88,8 +90,8 @@ int process_amplitude(int16_t *pcm, int len)
 
 
 //LED FUNCS
-#define MAX_LED 8
-#define USE_BRIGHTNESS 0
+#define MAX_LED 64
+#define USE_BRIGHTNESS 1
 
 
 uint8_t LED_Data[MAX_LED][4];
@@ -266,6 +268,49 @@ uint8_t rainbow_effect_right() {
   return 0x01;
 }
 
+
+uint16_t getLedIndex(uint8_t x, uint8_t y) {
+    if (y % 2 == 0) {
+        return y * 8 + x;
+    } else {
+        return y * 8 + (7 - x);  // reverse in odd rows
+    }
+}
+void shiftLeft() {
+    for (int x = 0; x < 7; x++) {
+        for (int y = 0; y < 8; y++) {
+            ledR[x][y] = ledR[x+1][y];
+            ledG[x][y] = ledG[x+1][y];
+            ledB[x][y] = ledB[x+1][y];
+        }
+    }
+}
+void insertAmplitudeColumn(int amplitude) {
+    int height = amplitude / 100;
+    if (height > 8) height = 8;
+
+    for (int y = 0; y < 8; y++) {
+        if (y < height) {
+            ledR[7][y] = rand() % 256;
+            ledG[7][y] = rand() % 256;
+            ledB[7][y] = rand() % 256;
+        } else {
+            ledR[7][y] = 0;
+            ledG[7][y] = 0;
+            ledB[7][y] = 0;
+        }
+    }
+}
+void updateLEDs() {
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            int i = getLedIndex(x, y);
+            Set_LED(i, ledR[x][y], ledG[x][y], ledB[x][y]);
+        }
+    }
+    Set_Brightness(10);
+    WS2812_Send();
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -334,6 +379,7 @@ int main(void)
 
 	      // Map amplitude to green
 	      // Map amplitude to 0–8 LEDs
+	      /*
 	      int level = amplitude / 100;  // Do nhay
 	      if (level > 8) level = 8;
 
@@ -353,6 +399,11 @@ int main(void)
 
 	      Set_Brightness(1);
 	      WS2812_Send();
+	      */
+
+	      shiftLeft();
+	      insertAmplitudeColumn(amplitude);
+	      updateLEDs();
 	      // Restart I2S DMA
 	      HAL_I2S_Receive_DMA(&hi2s2, pdmBuffer, PDM_BUFFER_SIZE);
 
